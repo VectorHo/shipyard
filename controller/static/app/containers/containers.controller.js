@@ -1,12 +1,14 @@
 (function(){
     'use strict';
 
-    angular
-        .module('shipyard.containers')
-        .controller('ContainersController', ContainersController);
+    var containersModule = angular
+        .module('shipyard.containers');
+		
+        containersModule.controller('ContainersController', ContainersController);
 
-    ContainersController.$inject = ['$scope', 'ContainerService', '$state'];
-    function ContainersController($scope, ContainerService, $state) {
+
+    ContainersController.$inject = ['$scope', 'ContainerService','NodesService', '$state'];
+    function ContainersController($scope, ContainerService,NodesService, $state) {
         var vm = this;
         
         vm.error = "";
@@ -19,6 +21,7 @@
         vm.selectedContainer = null;
         vm.selectedContainerId = "";
         vm.newName = "";
+        vm.repoName = "";
 
         vm.showDestroyContainerDialog = showDestroyContainerDialog;
         vm.showRestartContainerDialog = showRestartContainerDialog;
@@ -26,6 +29,7 @@
         vm.showPauseContainerDialog = showPauseContainerDialog;
         vm.showScaleContainerDialog = showScaleContainerDialog;
         vm.showRenameContainerDialog = showRenameContainerDialog;
+        vm.showCommitContainerDialog = showCommitContainerDialog;
         vm.destroyContainer = destroyContainer;
         vm.stopContainer = stopContainer;
         vm.pauseContainer = pauseContainer;
@@ -33,6 +37,7 @@
         vm.restartContainer = restartContainer;
         vm.scaleContainer = scaleContainer;
         vm.renameContainer = renameContainer;
+        vm.commitContainer = commitContainer;
         vm.refresh = refresh;
         vm.containerStatusText = containerStatusText;
 		vm.nodeName = nodeName;
@@ -42,8 +47,26 @@
         vm.destroyAll = destroyAll;
         vm.stopAll = stopAll;
         vm.restartAll = restartAll;
-
+		vm.nodeList = [];
+		NodesService.list()
+                    .then(function(data) {
+                        vm.nodeList = data;
+						vm.nodeList.unshift({name:" ",addr:"All nodes"});
+						vm.selectTableFilter = vm.nodeList[0].name; 
+                    }, function(data) {
+                        vm.error = data;
+                    });
+//		vm.nodeList = [{name:"moby",addr:"192.168.65.2:2375",containers:"7 (7 Running, 0 Paused, 0 Stopped)",reserved_cpus:"0 / 2",reserved_memory:"0 B / 2.048 GiB",labels:["kernelversion=4.4.30-moby"," operatingsystem=Alpine Linux v3.4"," storagedriver=aufs"],response_time:0},{name:"moby2",addr:"192.168.65.3:2375",containers:"7 (7 Running, 0 Paused, 0 Stopped)",reserved_cpus:"0 / 2",reserved_memory:"0 B / 2.048 GiB",labels:["kernelversion=4.4.30-moby"," operatingsystem=Alpine Linux v3.4"," storagedriver=aufs"],response_time:0}]
+		
+		
+		
         refresh();
+
+		//dbChange
+		$scope.dbChange = function(){
+			console.log(vm.selectTableFilter)
+		}
+
 
         // Apply jQuery to dropdowns in table once ngRepeat has finished rendering
         $scope.$on('ngRepeatFinished', function() {
@@ -187,6 +210,11 @@
             $('#rename-modal').modal('show');
         }
 
+        function showCommitContainerDialog(container) {
+            vm.selectedContainer = container;
+            $('#commit-modal').modal('show');
+        }
+
         function destroyContainer() {
             ContainerService.destroy(vm.selectedContainerId)
                 .then(function(data) {
@@ -254,6 +282,15 @@
                 });
         }
 
+        function commitContainer() {
+            ContainerService.commit(vm.selectedContainer.Id, vm.repoName)
+                .then(function(data) {
+                    vm.refresh();
+                }, function(data) {
+                    vm.error = data;
+                });
+        }
+
         function containerStatusText(container) {
             if(container.Status.indexOf("Up")==0){
                 if (container.Status.indexOf("(Paused)") != -1) {
@@ -284,7 +321,6 @@
 			// Names with the same number of components are considered in undefined order
 			var shortestName = "";
 			var minComponents = 99;
-			
 			var names = container.Names
 			for(var i=0; i<names.length; i++) {
 				var name = names[i];
